@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CloudFormation template for S3 bucket with versioning, lifecycle policy, and static website hosting'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: Globally unique name for the S3 bucket
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: '[a-z0-9][a-z0-9\-]*[a-z0-9]'
+    ConstraintDescription: Bucket name must be lowercase, start and end with letter or number, and contain only alphanumeric characters and hyphens
+
+  WebsiteIndexDocument:
+    Type: String
+    Default: index.html
+    Description: Name of the index document for the website
+
+  WebsiteErrorDocument:
+    Type: String
+    Default: error.html
+    Description: Name of the error document for the website
+
+Resources:
+  InterviewPrepBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BucketName
+      AccessControl: Private
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToGlacierAfter30Days
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: GLACIER
+      WebsiteConfiguration:
+        IndexDocument: !Ref WebsiteIndexDocument
+        ErrorDocument: !Ref WebsiteErrorDocument
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref InterviewPrepBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref InterviewPrepBucket
+                - /*
+          - Sid: AllowPutObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:PutObject
+            Resource: !Join 
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref InterviewPrepBucket
+                - /*
+            Condition:
+              IpAddress:
+                aws:SourceIp: 0.0.0.0/0  # In production, restrict to specific IPs
+
+Outputs:
+  BucketName:
+    Description: Name of the created S3 bucket
+    Value: !Ref InterviewPrepBucket
+
+  BucketArn:
+    Description: ARN of the created S3 bucket
+    Value: !GetAtt InterviewPrepBucket.Arn
+
+  WebsiteURL:
+    Description: URL for the static website hosted on S3
+    Value: !GetAtt InterviewPrepBucket.WebsiteURL
+
+  WebsiteDomain:
+    Description: Domain name for the static website hosted on S3
+    Value: !GetAtt InterviewPrepBucket.WebsiteDomain
